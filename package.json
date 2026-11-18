@@ -5,7 +5,7 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "build": "esbuild panel/main.ts --bundle --format=iife --platform=browser --outfile=panel/main.js"
+    "build": "esbuild status/main.ts --bundle --format=iife --platform=browser --outfile=status/main.js"
   },
   "devDependencies": {
     "@openchamber/sdk": "^2.7.2",
@@ -20,8 +20,10 @@
     "name": "bili context",
     "icon": "icon.svg",
     "contributes": {
-      "panel": {
-        "entry": "panel/index.html"
+      "statusSection": {
+        "entry": "status/index.html",
+        "title": "bili context",
+        "height": 150
       },
       "service": {
         "entry": "service/main.js",

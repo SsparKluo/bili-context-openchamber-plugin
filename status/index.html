@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="zh-cn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>bili context</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    padding: 8px 12px;
+    font-family: var(--oc-font, system-ui, -apple-system, sans-serif);
+    font-size: 12px;
+    line-height: 1.5;
+    background: var(--oc-bg, transparent);
+    color: var(--oc-fg, #1a1a1a);
+  }
+  .mono { font-family: var(--oc-mono, ui-monospace, monospace); }
+
+  .hdr {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+    font-size: 11px;
+  }
+  .dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--oc-muted, #999);
+    flex: none;
+  }
+  .dot.ok { background: var(--oc-success, #2ea043); }
+  .dot.err { background: var(--oc-error, #d1242f); }
+  .hdr-name { font-weight: 600; }
+  .hdr-meta { color: var(--oc-muted, #888); }
+  .hdr-meta .stale { color: var(--oc-warning-text, var(--oc-warning, #b5812b)); }
+  .hdr-right { margin-left: auto; color: var(--oc-muted, #888); font-size: 10px; }
+
+  .row {
+    display: flex;
+    align-items: baseline;
+    gap: 6px 14px;
+    flex-wrap: wrap;
+    margin: 2px 0;
+  }
+  .cell { display: flex; align-items: baseline; gap: 5px; white-space: nowrap; }
+  .k { color: var(--oc-muted, #888); font-size: 10px; }
+  .v { font-weight: 600; font-size: 12px; }
+  .v.good { color: var(--oc-success-text, var(--oc-success, #2ea043)); }
+  .v.warn { color: var(--oc-warning-text, var(--oc-warning, #b5812b)); }
+  .v.bad { color: var(--oc-error-text, var(--oc-error, #d1242f)); }
+  .v.dim { color: var(--oc-muted, #888); font-weight: 500; }
+
+  .ctxline { display: flex; align-items: center; gap: 8px; margin: 4px 0 2px; }
+  .bar {
+    flex: 1;
+    min-width: 80px;
+    height: 7px;
+    border-radius: 4px;
+    background: var(--oc-muted-surface, var(--oc-subtle, #eee));
+    overflow: hidden;
+    position: relative;
+  }
+  .bar-fill { height: 100%; background: var(--oc-primary, #3b82f6); transition: width .4s ease; }
+  .bar-fill.warn { background: var(--oc-warning, #d99a30); }
+  .bar-fill.err { background: var(--oc-error, #d1242f); }
+  .bar-nudge {
+    position: absolute;
+    top: -1px; bottom: -1px;
+    width: 2px;
+    background: var(--oc-warning, #d99a30);
+    opacity: .7;
+  }
+
+  .pendingbar {
+    width: 60px; height: 5px;
+    border-radius: 3px;
+    background: var(--oc-muted-surface, var(--oc-subtle, #eee));
+    overflow: hidden;
+    align-self: center;
+  }
+  .pendingbar > i { display: block; height: 100%; background: var(--oc-warning, #d99a30); }
+
+  .notice { color: var(--oc-muted, #888); font-size: 11px; }
+  .notice.err { color: var(--oc-error-text, var(--oc-error, #d1242f)); }
+  .notice code { font-family: var(--oc-mono, monospace); font-size: 10px; }
+</style>
+</head>
+<body>
+  <div class="hdr">
+    <span id="dot" class="dot"></span>
+    <span class="hdr-name">bili context</span>
+    <span id="hdr-meta" class="hdr-meta mono"></span>
+    <span id="hdr-right" class="hdr-right"></span>
+  </div>
+  <div id="body">
+    <div class="notice">等待数据…</div>
+  </div>
+  <script src="main.js"></script>
+</body>
+</html>

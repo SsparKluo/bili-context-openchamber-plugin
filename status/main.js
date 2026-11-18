@@ -1977,7 +1977,8 @@ ${GUEST_SCROLLBAR_CSS}
 ${UI_SIZE_CSS}
 ${GUEST_UI_LOOK_CSS}`;
 
-  // panel/main.ts
+  // status/main.ts
+  var NUDGE_DEFAULT_TOKENS = 5e4;
   var host = (() => {
     try {
       return connectHost();
@@ -1986,7 +1987,6 @@ ${GUEST_UI_LOOK_CSS}`;
     }
   })();
   var currentSessionId = null;
-  var hostSessionTitle = null;
   var timer;
   var inFlight = false;
   var lastOk = false;
@@ -2010,10 +2010,6 @@ ${GUEST_UI_LOOK_CSS}`;
     if (n >= 1e3) return (n / 1e3).toFixed(1) + "K";
     return String(n);
   }
-  function fmtUsd(n) {
-    if (n === void 0 || n === null || Number.isNaN(n)) return "\u2014";
-    return "$" + (n >= 1 ? n.toFixed(2) : n.toFixed(4));
-  }
   function fmtRel(iso) {
     if (!iso) return "";
     const t = Date.parse(iso);
@@ -2034,10 +2030,10 @@ ${GUEST_UI_LOOK_CSS}`;
     if (pct >= 70) return "warn";
     return "";
   }
-  async function fetchBili(path, query) {
+  async function fetchBili(path) {
     if (!host) return { ok: false, error: "HOST_UNAVAILABLE" };
     try {
-      const res = await host.serviceRequest({ method: "GET", path, query });
+      const res = await host.serviceRequest({ method: "GET", path });
       if (res.status !== 200) {
         let msg = `HTTP ${res.status}`;
         try {
@@ -2054,139 +2050,89 @@ ${GUEST_UI_LOOK_CSS}`;
       return { ok: false, error: code ? `${code}: ${msg}` : msg };
     }
   }
-  function renderSession(sess, hostSessionTitle2) {
-    const el2 = $("session-body");
+  function render(sess, status) {
+    const dot = $("dot");
+    dot.className = "dot " + (lastOk ? "ok" : "err");
+    const meta = [];
+    if (status?.version) meta.push("v" + esc(status.version));
+    if (status?.stale) meta.push('<span class="stale">stale</span>');
+    $("hdr-meta").innerHTML = meta.join(" \xB7 ");
+    $("hdr-right").textContent = sess?.lastSeen ? fmtRel(sess.lastSeen) : "";
+    const body = $("body");
+    if (!lastOk) {
+      body.innerHTML = `<div class="notice err">${esc(hintFor(lastError))}</div>`;
+      host?.setHeight?.(92);
+      return;
+    }
     if (!sess) {
-      el2.innerHTML = hostSessionTitle2 ? `<div class="notice">\u5F53\u524D\u4F1A\u8BDD\u4E0D\u5728 bili \u4F1A\u8BDD\u5217\u8868\u4E2D\u3002<br><span style="font-size:11px">\u53EF\u80FD bili \u4EE3\u7406\u672A\u8FD0\u884C\u3001\u8BE5\u4F1A\u8BDD\u672A\u7ECF\u8FC7\u4EE3\u7406\uFF0C\u6216\u8D70\u4E86\u53E6\u4E00\u6761 lane\u3002</span></div>` : `<div class="notice">\u6CA1\u6709\u6253\u5F00\u7684\u4F1A\u8BDD\u3002\u6253\u5F00\u4E00\u4E2A\u7ECF\u8FC7 bili \u4EE3\u7406\u7684\u4F1A\u8BDD\u5373\u53EF\u67E5\u770B\u3002</div>`;
+      body.innerHTML = '<div class="notice">\u5F53\u524D\u6CA1\u6709\u7ECF\u8FC7 bili \u4EE3\u7406\u7684\u6D3B\u52A8\u4F1A\u8BDD\u3002</div>';
+      host?.setHeight?.(92);
       return;
     }
     const ctxTokens = sess.contextTokens ?? 0;
     const ctxWindow = sess.contextWindow ?? 0;
     const ctxPct = ctxWindow > 0 ? Math.min(100, ctxTokens / ctxWindow * 100) : 0;
-    const pctLabel = ctxWindow > 0 ? `${ctxPct.toFixed(1)}%` : "";
-    const missNew = sess.missDropNew ?? 0;
-    const missTtl = sess.missDropTtl ?? 0;
-    const missComp = sess.missDropComp ?? 0;
-    const missSum = missNew + missTtl + missComp;
-    const w = (v2) => missSum > 0 ? v2 / missSum * 100 : 0;
-    const title = sess.title || hostSessionTitle2 || sess.id;
-    el2.innerHTML = `
-    <div class="sess-title" title="${esc(title)}">${esc(title)}</div>
-    <div class="sess-sub mono">${esc(sess.model ?? "")}${sess.model ? " \xB7 " : ""}${esc(fmtRel(sess.lastSeen))}${sess.live ? " \xB7 live" : ""}</div>
-    <div class="bar-label"><span>\u4E0A\u4E0B\u6587\u5360\u7528</span><span class="mono">${esc(fmtTokens(ctxTokens))} / ${esc(ctxWindow ? fmtTokens(ctxWindow) : "?")} ${esc(pctLabel)}</span></div>
-    <div class="bar"><div class="bar-fill ${pressureClass(ctxPct)}" style="width:${ctxWindow > 0 ? Math.max(1.5, ctxPct) : 0}%"></div></div>
-    <div class="grid">
-      <div class="stat"><div class="v ${hitClass(sess.cacheHitPct)}">${esc(sess.cacheHitPct !== void 0 ? sess.cacheHitPct + "%" : "\u2014")}</div><div class="k">\u7F13\u5B58\u547D\u4E2D</div></div>
-      <div class="stat"><div class="v">${esc(fmtTokens(sess.inputTokens))}</div><div class="k">\u7D2F\u8BA1\u8F93\u5165</div></div>
-      <div class="stat"><div class="v">${esc(fmtTokens(sess.cachedTokens))}</div><div class="k">\u5176\u4E2D\u7F13\u5B58\u8BFB</div></div>
-      <div class="stat"><div class="v">${esc(String(sess.requests ?? "\u2014"))}</div><div class="k">\u8BF7\u6C42\u6570</div></div>
-      <div class="stat"><div class="v">${esc(String(sess.blocks ?? 0))}</div><div class="k">\u538B\u7F29\u5757</div></div>
-      <div class="stat"><div class="v">${esc(fmtUsd(sess.costUsd?.total))}</div><div class="k">\u6210\u672C</div></div>
+    const bestTokens = sess.contextBest?.tokens;
+    const pending = bestTokens !== void 0 ? Math.max(0, ctxTokens - bestTokens) : void 0;
+    const pendingOfNudge = pending !== void 0 ? Math.min(100, pending / NUDGE_DEFAULT_TOKENS * 100) : 0;
+    const nudgeMark = ctxWindow > 0 && NUDGE_DEFAULT_TOKENS < ctxWindow ? `<span class="bar-nudge" style="left:${NUDGE_DEFAULT_TOKENS / ctxWindow * 100}%"></span>` : "";
+    body.innerHTML = `
+    <div class="ctxline">
+      <span class="k">\u4E0A\u4E0B\u6587</span>
+      <div class="bar"><div class="bar-fill ${pressureClass(ctxPct)}" style="width:${ctxWindow > 0 ? Math.max(1, ctxPct) : 0}%"></div>${nudgeMark}</div>
+      <span class="v mono ${pressureClass(ctxPct)}">${esc(fmtTokens(ctxTokens))}<span class="v dim"> / ${esc(ctxWindow ? fmtTokens(ctxWindow) : "?")}</span> \xB7 ${esc(ctxWindow ? ctxPct.toFixed(0) + "%" : "\u2014")}</span>
     </div>
-    ${missSum > 0 ? `
-    <div class="bar-label" style="margin-top:10px"><span>\u672A\u547D\u4E2D\u5F52\u56E0</span><span class="mono">new ${missNew.toFixed(1)}% \xB7 ttl ${missTtl.toFixed(1)}% \xB7 comp ${missComp.toFixed(1)}%</span></div>
-    <div class="missbar">
-      <span class="m-new" style="width:${w(missNew)}%"></span>
-      <span class="m-ttl" style="width:${w(missTtl)}%"></span>
-      <span class="m-comp" style="width:${w(missComp)}%"></span>
+    <div class="row">
+      <span class="cell"><span class="k">\u7F13\u5B58</span><span class="v ${hitClass(sess.cacheHitPct)}">${esc(sess.cacheHitPct !== void 0 ? sess.cacheHitPct.toFixed(sess.cacheHitPct >= 99 ? 0 : 1) + "%" : "\u2014")}</span></span>
+      <span class="cell"><span class="k">\u7F13\u5B58\u8BFB</span><span class="v mono">${esc(fmtTokens(sess.cachedTokens))}</span></span>
+      <span class="cell"><span class="k">\u8F93\u5165\u7D2F\u8BA1</span><span class="v mono">${esc(fmtTokens(sess.inputTokens))}</span></span>
+      <span class="cell"><span class="k">\u8BF7\u6C42</span><span class="v mono">${esc(String(sess.requests ?? "\u2014"))}</span></span>
     </div>
-    <div class="miss-legend">
-      <span><i class="m-new"></i>\u65B0\u5185\u5BB9</span>
-      <span><i class="m-ttl"></i>\u7F13\u5B58\u8FC7\u671F</span>
-      <span><i class="m-comp"></i>\u538B\u7F29\u56DE\u586B</span>
-    </div>` : ""}
-  `;
-  }
-  function renderGlobal(ov) {
-    const el2 = $("global-body");
-    if (!ov) {
-      el2.innerHTML = '<div class="notice">\u6682\u65E0\u5168\u5C40\u6570\u636E\u3002</div>';
-      return;
-    }
-    el2.innerHTML = `
-    <div class="grid" style="margin-top:0">
-      <div class="stat"><div class="v ${hitClass(ov.hitPct)}">${esc(ov.hitPct !== void 0 ? ov.hitPct + "%" : "\u2014")}</div><div class="k">\u603B\u547D\u4E2D\u7387</div></div>
-      <div class="stat"><div class="v">${esc(String(ov.requests ?? "\u2014"))}</div><div class="k">\u603B\u8BF7\u6C42</div></div>
-      <div class="stat"><div class="v">${esc(String(ov.live ?? "\u2014"))}<span style="font-size:11px;color:var(--oc-muted,#888)">/${esc(String(ov.sessions ?? "\u2014"))}</span></div><div class="k">\u6D3B\u8DC3/\u4F1A\u8BDD</div></div>
-      <div class="stat"><div class="v">${esc(fmtTokens(ov.inputTokens))}</div><div class="k">\u7D2F\u8BA1\u8F93\u5165</div></div>
-      <div class="stat"><div class="v">${esc(fmtTokens(ov.cachedTokens))}</div><div class="k">\u7F13\u5B58\u8BFB</div></div>
-      <div class="stat"><div class="v">${esc(String(ov.blocks ?? 0))}</div><div class="k">\u538B\u7F29\u5757</div></div>
+    <div class="row">
+      <span class="cell"><span class="k">\u5DF2\u538B\u7F29</span><span class="v">${esc(String(sess.blocks ?? 0))} \u5757</span><span class="v mono">${esc(fmtTokens(sess.tokensSaved))} tok</span></span>
+      <span class="cell"><span class="k">\u5F85\u6298\u53E0</span><span class="v ${pending !== void 0 && pending > NUDGE_DEFAULT_TOKENS ? "warn" : ""}">${pending !== void 0 ? "\u2248" + esc(fmtTokens(pending)) + " tok" : "\u2014"}</span><span class="pendingbar"><i style="width:${pendingOfNudge}%"></i></span><span class="v dim">50K \u7EBF</span></span>
     </div>
   `;
+    host?.setHeight?.(118);
   }
-  function renderHeader(status) {
-    $("dot").className = "dot " + (lastOk ? "ok" : "err");
-    const meta = $("hdr-meta");
-    const bits = [];
-    if (status?.version) bits.push("v" + status.version);
-    if (status?.stale) bits.push('<span class="stale">stale</span>');
-    meta.innerHTML = bits.join(" \xB7 ");
-  }
-  function renderFooter(origin) {
-    $("foot-origin").textContent = origin;
-    $("foot-status").textContent = lastOk ? `\u5DF2\u66F4\u65B0 ${(/* @__PURE__ */ new Date()).toLocaleTimeString()}` : lastError ? `\u9519\u8BEF\uFF1A${lastError}` : "";
-  }
-  function setSessionCardError(message) {
-    $("session-body").innerHTML = `<div class="notice err">${esc(message)}</div>`;
+  function hintFor(error) {
+    if (error.includes("NO_SERVICE")) return "\u672C\u5730 service \u672A\u6279\u51C6\uFF1A\u8BBE\u7F6E \u2192 \u6269\u5C55 \u4E2D\u6279\u51C6\u540E\u91CD\u8BD5";
+    if (error.includes("SERVICE_FAILED")) return "\u672C\u5730 service \u542F\u52A8\u5931\u8D25\uFF0C\u67E5\u770B OpenChamber \u65E5\u5FD7";
+    if (error.includes("bili-unreachable") || error.includes("ECONNREFUSED")) return "bili \u4EE3\u7406\u4E0D\u53EF\u8FBE\uFF1A\u5148\u542F\u52A8 bili start";
+    return `bili \u6570\u636E\u4E0D\u53EF\u7528\uFF1A${error}`;
   }
   async function refresh() {
     if (inFlight || document.hidden) return;
     inFlight = true;
     try {
-      const [sessionsR, overviewR, statusR] = await Promise.all([
+      const [sessionsR, statusR] = await Promise.all([
         fetchBili("/bili/sessions"),
-        fetchBili("/bili/overview"),
         fetchBili("/bili/status")
       ]);
-      lastOk = sessionsR.ok || overviewR.ok;
-      lastError = lastOk ? "" : sessionsR.error || overviewR.error || "bili \u4E0D\u53EF\u8FBE";
-      renderHeader(statusR.ok ? statusR.data ?? null : null);
-      renderGlobal(overviewR.ok ? overviewR.data?.overview ?? null : null);
-      if (sessionsR.ok) {
-        const list = sessionsR.data?.sessions ?? [];
-        const mine = currentSessionId ? list.find((s) => s.id === currentSessionId) ?? null : null;
-        renderSession(mine, hostSessionTitle);
-      } else {
-        setSessionCardError(hintFor(sessionsR.error ?? ""));
-      }
-      renderFooter(lastOk ? "" : "");
+      lastOk = sessionsR.ok;
+      lastError = lastOk ? "" : sessionsR.error || "bili \u4E0D\u53EF\u8FBE";
+      const list = sessionsR.ok ? sessionsR.data?.sessions ?? [] : [];
+      const mine = currentSessionId ? list.find((s) => s.id === currentSessionId) ?? null : null;
+      render(mine, statusR.ok ? statusR.data ?? null : null);
     } finally {
       inFlight = false;
     }
   }
-  function hintFor(error) {
-    if (error.includes("NO_SERVICE")) {
-      return "\u672C\u5730 service \u5C1A\u672A\u6279\u51C6\u6216\u672A\u542F\u52A8\u3002<br>\u8BF7\u5728 \u8BBE\u7F6E \u2192 \u6269\u5C55 \u4E2D\u6279\u51C6\u672C\u5730\u670D\u52A1\u540E\u91CD\u8BD5\u3002";
-    }
-    if (error.includes("SERVICE_FAILED")) {
-      return "\u672C\u5730 service \u542F\u52A8\u5931\u8D25\uFF08SERVICE_FAILED\uFF09\u3002<br>\u67E5\u770B OpenChamber \u65E5\u5FD7\uFF0C\u6216\u91CD\u542F\u6269\u5C55\u3002";
-    }
-    if (error.includes("bili-unreachable") || error.includes("ECONNREFUSED")) {
-      return "bili \u4EE3\u7406\u4E0D\u53EF\u8FBE\u3002\u5148\u542F\u52A8\u5B83\uFF1A<br><code>bili start</code> \u6216 <code>bili opencode \u2026</code>";
-    }
-    return `bili \u6570\u636E\u4E0D\u53EF\u7528\uFF1A${esc(error)}`;
-  }
-  function startPolling() {
-    if (timer) return;
-    timer = setInterval(refresh, 5e3);
-  }
   function main() {
     if (!host) {
-      document.body.innerHTML = '<div class="notice err" style="padding:24px">\u6B64\u9875\u9762\u9700\u8981\u5728 OpenChamber \u5185\u6253\u5F00\uFF08HOST_UNAVAILABLE\uFF09\u3002</div>';
+      document.body.innerHTML = '<div class="notice err">\u6B64\u9875\u9762\u9700\u8981\u5728 OpenChamber \u5185\u6253\u5F00\uFF08HOST_UNAVAILABLE\uFF09\u3002</div>';
       return;
     }
     host.onReady((ctx) => {
       applyHostReady(ctx, document.documentElement);
       currentSessionId = ctx.session?.id ?? null;
-      hostSessionTitle = ctx.session?.title ?? null;
-      startPolling();
+      timer = setInterval(refresh, 5e3);
       refresh();
     });
     host.onSession((s) => {
       const id = s?.id ?? null;
       if (id === currentSessionId) return;
       currentSessionId = id;
-      hostSessionTitle = s?.title ?? null;
       refresh();
     });
   }

@@ -1,6 +1,11 @@
 # bili context · OpenChamber 扩展
 
-在 [OpenChamber](https://docs.openchamber.dev) 侧栏实时显示 [billion-context](https://github.com/ranxianglei/billion-context)（bili）管理的上下文：当前会话上下文占用、缓存命中率、请求/压缩块统计、成本、未命中归因（新内容 / 缓存过期 / 压缩回填）与全局概览。
+在 [OpenChamber](https://docs.openchamber.dev) 的 **Work Status 面板**中实时显示 [billion-context](https://github.com/ranxianglei/billion-context)（bili）管理的上下文：
+
+- **上下文** — 当前会话占用（tokens / 窗口，含 ~50K 折叠参考线）
+- **缓存** — 命中率、缓存读 tokens、输入累计、请求数
+- **已压缩** — 压缩块数量与节省的 tokens
+- **待折叠** — 自上次折叠点（`contextBest`）以来尚未压缩的增量 tokens（≈ bili nudge 机制提示模型折叠的那部分）
 
 ## 数据链路
 
@@ -20,8 +25,8 @@ panel (沙箱 iframe)
    git clone https://github.com/SsparKluo/bili-context-openchamber-plugin.git
    ```
 2. 打开 OpenChamber → **设置 → 扩展**，粘贴文件夹绝对路径
-3. 在批准对话框中确认（面板 + 本地服务）
-4. 启动 billion-context 代理（如尚未运行），侧栏即可看到 "bili context" 图标
+3. 在批准对话框中确认（本地服务 + Work Status 分区）
+4. 启动 billion-context 代理（如尚未运行），在 Work Status 面板的分区列表中开启 "bili context" 即可
 
 ## 从源码构建（可选）
 
@@ -29,7 +34,7 @@ panel (沙箱 iframe)
 
 ```bash
 npm install
-npm run build   # esbuild → panel/main.js (IIFE)
+npm run build   # esbuild → status/main.js (IIFE)
 ```
 
 ## 端口发现

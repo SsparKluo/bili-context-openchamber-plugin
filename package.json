@@ -1,0 +1,32 @@
+{
+  "name": "bili-context-openchamber-plugin",
+  "description": "OpenChamber extension: billion-context managed-context panel (usage, cache health, folds)",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "esbuild panel/main.ts --bundle --format=iife --platform=browser --outfile=panel/main.js"
+  },
+  "devDependencies": {
+    "@openchamber/sdk": "^2.7.2",
+    "esbuild": "^0.27.7"
+  },
+  "openchamber": {
+    "apiVersion": 1,
+    "engines": {
+      "openchamber": ">=1.24.0"
+    },
+    "id": "bili-context",
+    "name": "bili context",
+    "icon": "icon.svg",
+    "contributes": {
+      "panel": {
+        "entry": "panel/index.html"
+      },
+      "service": {
+        "entry": "service/main.js",
+        "runtime": "host"
+      }
+    }
+  }
+}
